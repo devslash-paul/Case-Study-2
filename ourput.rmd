@@ -15,33 +15,87 @@ Storms have considerable impact on public health, this analysis should outline t
 
 ### X and Y as health risks and ecenomic factors in storm impact
 
-The storm data provided is in a good, format for the most. There are some column inconsistencies that should be resolved:
+# Data Processing
+
+The storm data provided is in a good, format for the most. Whitespace is stripped for ease of referencing
+
+```{r, cache=TRUE}
+library(ggplot2)
+data <- read.csv("StormData.csv.bz2", strip.white = T) 
+```
+
+Valida values for ecenomic EXP categories are K, M, and B for thousands, millions and billions. Lets start by only taking the rows that have this data 
 
 ```{r}
-library(plyr)
-data <- read.csv("StormData/StormData")
-unique(data$EVTYPE)[[958]]
+economicEvents <- data[data$PROPDMGEXP %in% c("K", "M", "B"),]
 ```
-The column shows there are some with names padded with spaces. These should be removed.
+
+Now, for those that are K, we times by 1000, M by 1,000,000, and B by 1,000,000,000
+```{r}
+money <- list()
+for(i in 1:nrow(economicEvents)) {
+  if(economicEvents[i,]$PROPDMGEXP == "K") {
+    money[i] <- economicEvents[i,]$PROPDMG * 1000
+  } else if(economicEvents[i,]$PROPDMGEXP == "M") {
+    money[i] <- economicEvents[i,]$PROPDMG * 1000000
+  } else {
+    money[i] <- economicEvents[i,]$PROPDMG * 1000000000
+  }
+}
+```
+
+So as we're looking into the events that are most harmful with 
 
 ```{r}
+fatalities <- aggregate(data$FATALITIES, by=list(data$EVTYPE), sum)
+injuries <- aggregate(data$INJURIES, by=list(data$EVTYPE), sum)
 
+highestFatality <- fatalities[which.max(fatalities$x),][1]
+highestInjury <- injuries[which.max(fatalities$x),][1]
 ```
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+We also need to find out which events have the most economic impact. 
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+includedDamage <- c("CROPDMGEXP", "PROPDMGEXP", )
 ```
 
-## Including Plots
+# Results
 
-You can also embed plots, for example:
+### Across the United States, which types of events are most harmful with respect to population health?
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+This question requires taking a look at both the events that are hamful via death and injuries. Lets summarise first by finding the events that are 
+
+* The most deadly
+* The most injury creating
+
+Lets take a look at the top 10 in each category
+
+```{r}
+attach(fatalities)
+topX <- head(fatalities[order(-x),], n=10)
+
+ggplot(topX, aes(x=Group.1, y=x)) + 
+  geom_bar(stat="identity") +
+  labs(x="Event", y="Fatalities") + 
+  theme(axis.text.x = element_text(angle = 45))
+
+attach(injuries)
+topXIn <- head(injuries[order(-x),], n=10)
+
+ggplot(topXIn, aes(x=Group.1, y=x)) + 
+  geom_bar(stat="identity") +
+  labs(x="Event", y="Fatalities") + 
+  theme(axis.text.x = element_text(angle = 45))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+So, obviously the answer is the same for each one:
+
+```{r}
+all.equal(highestInjury, highestFatality)
+
+highestFatality
+```
+
+So, from our data. Tornados are the worst event for population health. By a significant margin too.
+
